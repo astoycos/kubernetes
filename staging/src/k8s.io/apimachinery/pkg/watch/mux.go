@@ -115,17 +115,21 @@ func (obj functionFakeRuntimeObject) DeepCopyObject() runtime.Object {
 // won't ever see that event, and will always see any event after they are
 // added.
 func (m *Broadcaster) blockQueue(f func()) {
+	//m.incomingBlock.Lock()
+	//defer m.incomingBlock.Unlock()
 	select {
 	case <-m.stopped:
 		return
 	default:
 	}
+	fmt.Println("Blocking Incoming queue")
 	var wg sync.WaitGroup
 	wg.Add(1)
 	m.incoming <- Event{
 		Type: internalRunFunctionMarker,
 		Object: functionFakeRuntimeObject(func() {
 			defer wg.Done()
+			fmt.Println("Blocking Incoming queue in function")
 			f()
 		}),
 	}
@@ -254,6 +258,7 @@ func (m *Broadcaster) ActionOrDrop(action EventType, obj runtime.Object) (bool, 
 func (m *Broadcaster) Shutdown() {
 	m.incomingBlock.Lock()
 	defer m.incomingBlock.Unlock()
+	fmt.Print("blockqueue called after getting incoming Block lock")
 	m.blockQueue(func() {
 		close(m.stopped)
 		close(m.incoming)

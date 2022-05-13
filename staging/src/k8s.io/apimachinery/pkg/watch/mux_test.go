@@ -210,18 +210,59 @@ func BenchmarkBroadCaster(b *testing.B) {
 	b.StopTimer()
 }
 
-func TestBroadcasterWatchAfterShutdown(t *testing.T) {
+func TestBroadcasterWaitWatchAfterShutdown(t *testing.T) {
 	event1 := Event{Type: Added, Object: &myType{"foo", "hello world 1"}}
 	event2 := Event{Type: Added, Object: &myType{"bar", "hello world 2"}}
 
-	m := NewBroadcaster(0, WaitIfChannelFull)
+	m := NewBroadcaster(1, WaitIfChannelFull)
+
+	// Add a couple watchers
+	watches := make([]Interface, 2)
+	for i := range watches {
+		watches[i], _ = m.Watch()
+	}
+
 	m.Shutdown()
+
+	// Send a couple events after closing the broadcast channel.
+	t.Log("Sending event")
 
 	_, err := m.Watch()
 	assert.EqualError(t, err, "broadcaster already stopped", "Watch should report error id broadcaster is shutdown")
 
 	_, err = m.WatchWithPrefix([]Event{event1, event2})
 	assert.EqualError(t, err, "broadcaster already stopped", "WatchWithPrefix should report error id broadcaster is shutdown")
+}
+
+func TestBroadcasterDropWatchAfterShutdown(t *testing.T) {
+	//events := []Event{Event{Type: Added, Object: &myType{"foo", "hello world 1"}},
+	//	Event{Type: Added, Object: &myType{"bar", "hello world 2"}}, Event{Type: Added, Object: &myType{"foo", "hello world 3"}},
+	//	Event{Type: Added, Object: &myType{"bar", "hello world 4"}}, Event{Type: Added, Object: &myType{"foo", "hello world 5"}}}
+
+	m := NewBroadcaster(1, DropIfChannelFull)
+
+	// Add a couple watchers
+	watches := make([]Interface, 5)
+	var err error
+	for i := range watches {
+		watches[i], err = m.Watch()
+		assert.Empty(t, err, nil)
+	}
+
+	watches[0].Stop()
+	m.Broadcaster.blockQueue(func() {
+		time.Sleep(1 * time.Second)
+		t.Log("fakingBlocqueue")
+	})
+	m.Shutdown()
+
+	// t.Log("Sending events")
+	// // Send the events
+	// for _, event := range events {
+	// 	err := m.Action(event.Type, event.Object)
+	// 	assert.Empty(t, err, nil)
+	// }
+
 }
 
 func TestBroadcasterSendEventAfterShutdown(t *testing.T) {
